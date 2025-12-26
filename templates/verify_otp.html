@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify OTP | Shastika Global</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 320px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; text-align: center; font-size: 1.5rem; letter-spacing: 5px; }
+        button { width: 100%; padding: 12px; background: #007bb5; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h3>Step 2: Enter OTP</h3>
+        <p>Code sent to: {{ email }}</p>
+        <form action="/verify_otp" method="POST">
+            <input type="text" name="otp" placeholder="000000" maxlength="6" required>
+            <button type="submit">Verify & Continue</button>
+        </form>
+    </div>
+</body>
+</html>
