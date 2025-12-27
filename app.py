@@ -11,18 +11,15 @@ app.secret_key = 'shastika_manual_approval_key'
 
 # -------------------- CONFIGURATION --------------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-
-# Check if we are running on Render to use PostgreSQL (Persistent)
-# Otherwise, use SQLite locally (Temporary)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
     if DATABASE_URL:
-        # Connect to Render PostgreSQL
-        conn = psycopg2.connect(DATABASE_URL)
+        # Connect to Render PostgreSQL with SSL required for cloud security
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         return conn
     else:
-        # Connect to local SQLite
+        # Local SQLite for offline testing
         conn = sqlite3.connect('products.db')
         conn.row_factory = sqlite3.Row
         return conn
@@ -37,7 +34,7 @@ def init_db():
     cur = conn.cursor()
     
     if DATABASE_URL:
-        # POSTGRESQL VERSION
+        # PostgreSQL Schema
         cur.execute('''CREATE TABLE IF NOT EXISTS products 
                         (id SERIAL PRIMARY KEY, 
                          name TEXT, price TEXT, available TEXT, 
@@ -56,28 +53,30 @@ def init_db():
             cur.execute("INSERT INTO users (email, password, role, status) VALUES (%s, %s, %s, %s)",
                          ('admin@test.com', generate_password_hash('admin123'), 'admin', 'active'))
     else:
-        # SQLITE VERSION (Local)
+        # SQLite Schema
         cur.execute('''CREATE TABLE IF NOT EXISTS products 
                         (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                          name TEXT, price TEXT, available TEXT, 
                          description TEXT, image TEXT, category TEXT, unit TEXT)''')
-        
         cur.execute('''CREATE TABLE IF NOT EXISTS users 
                         (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                          email TEXT UNIQUE, password TEXT, role TEXT, status TEXT)''')
-        
         cur.execute('''CREATE TABLE IF NOT EXISTS login_logs 
                         (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                          email TEXT, login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-
-        admin_check = cur.execute("SELECT * FROM users WHERE email='admin@test.com'").fetchone()
-        if not admin_check:
+        
+        cur.execute("SELECT * FROM users WHERE email='admin@test.com'")
+        if not cur.fetchone():
             cur.execute("INSERT INTO users (email, password, role, status) VALUES (?, ?, ?, ?)",
                          ('admin@test.com', generate_password_hash('admin123'), 'admin', 'active'))
         
     conn.commit()
     cur.close()
     conn.close()
+
+# Force Table Creation on App Startup
+with app.app_context():
+    init_db()
 
 # -------------------- ROUTES --------------------
 
@@ -88,7 +87,7 @@ def pricing():
         return render_template('logingate.html')
     
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=DictCursor if DATABASE_URL else None)
     cur.execute("SELECT * FROM products")
     products = cur.fetchall()
     cur.close()
@@ -153,7 +152,7 @@ def admin():
         return redirect(url_for('pricing'))
 
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=DictCursor if DATABASE_URL else None)
 
     if request.method == 'POST':
         name, price, unit = request.form.get('name'), request.form.get('price'), request.form.get('unit')
@@ -162,8 +161,8 @@ def admin():
         filename = secure_filename(file.filename) if file else ''
         if file: file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         
-        insert_query = "INSERT INTO products (name,price,available,description,image,category,unit) VALUES (%s,%s,%s,%s,%s,%s,%s)" if DATABASE_URL else "INSERT INTO products (name,price,available,description,image,category,unit) VALUES (?,?,?,?,?,?,?)"
-        cur.execute(insert_query, (name, price, avail, desc, filename, cat, unit))
+        query = "INSERT INTO products (name,price,available,description,image,category,unit) VALUES (%s,%s,%s,%s,%s,%s,%s)" if DATABASE_URL else "INSERT INTO products (name,price,available,description,image,category,unit) VALUES (?,?,?,?,?,?,?)"
+        cur.execute(query, (name, price, avail, desc, filename, cat, unit))
         conn.commit()
 
     cur.execute("SELECT * FROM products")
@@ -215,11 +214,9 @@ def delete_product(product_id):
 
 @app.route('/edit/<int:id>', methods=['GET', 'POST'])
 def edit_product(id):
-    if session.get('role') != 'admin': 
-        return redirect(url_for('pricing'))
-    
+    if session.get('role') != 'admin': return redirect(url_for('pricing'))
     conn = get_db_connection()
-    cur = conn.cursor()
+    cur = conn.cursor(cursor_factory=DictCursor if DATABASE_URL else None)
 
     if request.method == 'POST':
         query = "UPDATE products SET name=%s, price=%s, unit=%s, available=%s, category=%s, description=%s WHERE id=%s" if DATABASE_URL else "UPDATE products SET name=?, price=?, unit=?, available=?, category=?, description=? WHERE id=?"
@@ -245,9 +242,5 @@ def logout():
     return redirect(url_for('pricing'))
 
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
-
-
