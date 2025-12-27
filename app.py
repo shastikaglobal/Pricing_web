@@ -9,6 +9,17 @@ app.secret_key = 'shastika_manual_approval_key'
 
 # -------------------- CONFIGURATION --------------------
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# Check if we are running on Render to use the Persistent Disk
+if os.environ.get('RENDER'):
+    # This path must match the 'Mount Path' you set in Render Disks
+    DB_PATH = '/var/lib/data/products.db'
+    # Ensure the directory on the disk exists
+    os.makedirs('/var/lib/data', exist_ok=True)
+else:
+    # Local path for your computer
+    DB_PATH = os.path.join(BASE_DIR, 'products.db')
+
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'static', 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -168,3 +179,4 @@ if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
